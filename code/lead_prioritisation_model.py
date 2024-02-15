@@ -114,3 +114,63 @@ for country in countries:
     plt.xlabel('Predicted Label')
     plt.ylabel('True Label')
     plt.show()
+
+# Generate another set of fake lead data for prediction
+fake_lead_data = []
+for _ in range(100):
+    fake_lead_data.append([
+        generate_lead_id(),  # 12-digit alphanumeric lead id
+        fake.date_between(start_date='-30d', end_date='today'),  # Date of the lead
+        fake.date_between(start_date='today', end_date='+30d'),  # Date of moving
+        fake.random_int(min=400, max=2000),  # Surface area of the apartment (in square feet)
+        fake.random_int(min=5, max=100),  # Volume of the furniture (in cubic feet)
+        fake.random_element(elements=('North', 'South', 'East', 'West')),  # Region of the lead
+        fake.random_element(elements=('Germany', 'France', 'Sweden')),  # Country
+        fake.random_element(elements=('Social Media', 'Referrals', 'Website', 'Phone', 
+                                      'Immoscout24', 'Immowelt', 'Demenagement', 'Ebay', 
+                                      'Wunderflats', 'Wg-gesucht', 'HousingAnywhere')),  # Source of the lead
+        fake.random_element(elements=('Low', 'Medium', 'High')),  # Urgency of the move
+    ])
+
+# Convert fake_lead_data to DataFrame
+fake_lead_df = pd.DataFrame(fake_lead_data, columns=[
+    'Lead ID', 'Date of the lead', 'Date of moving',
+    'Surface area of the apartment', 'Volume of the furniture',
+    'Region of the lead', 'Country', 'Source of the lead', 'Urgency of the move'
+])
+
+# Convert date columns to datetime objects
+fake_lead_df['Date of the lead'] = pd.to_datetime(fake_lead_df['Date of the lead'])
+fake_lead_df['Date of moving'] = pd.to_datetime(fake_lead_df['Date of moving'])
+
+# Extract relevant information from the date features
+fake_lead_df['Day of the week'] = fake_lead_df['Date of the lead'].dt.dayofweek
+fake_lead_df['Days until moving'] = (fake_lead_df['Date of moving'] - fake_lead_df['Date of the lead']).dt.days
+
+# Drop the original date features and 'Lead ID'
+fake_lead_df = fake_lead_df.drop(['Date of moving', 'Lead ID'], axis=1)
+
+# Convert categorical features to one-hot encoding
+fake_lead_df_encoded = pd.get_dummies(fake_lead_df, columns=['Region of the lead', 'Country', 'Source of the lead', 'Urgency of the move'])
+
+# Drop the 'Date of the lead' column before scaling
+fake_lead_df_encoded = fake_lead_df_encoded.drop(['Date of the lead'], axis=1)
+
+# Standardize features by removing the mean and scaling to unit variance
+fake_lead_X_scaled = scaler.transform(fake_lead_df_encoded.values)
+
+# Make predictions on the new set of fake leads with probability estimates
+fake_lead_probabilities = model.predict_proba(fake_lead_X_scaled)[:, 1]  # Probability of conversion
+
+# Display predictions along with country and lead creation date
+fake_lead_results = pd.DataFrame({
+    'Lead ID': [lead[0] for lead in fake_lead_data],  # Extract 'Lead ID' from fake_lead_data
+    'Country': fake_lead_df['Country'],
+    'Lead Creation Date': fake_lead_df['Date of the lead'],
+    'Probability of Conversion': fake_lead_probabilities
+})
+
+# Sort the results DataFrame by "Probability of Conversion" in descending order for each country
+fake_lead_results_sorted = fake_lead_results.sort_values(by=['Country', 'Probability of Conversion'], ascending=[True, False])
+
+print(fake_lead_results_sorted)
